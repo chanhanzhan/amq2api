@@ -1,46 +1,40 @@
 #!/bin/bash
+# AMQ2API v2.0 启动脚本
 
-# Amazon Q to Claude API Proxy 启动脚本
-
-set -e
-
-echo "=========================================="
-echo "Amazon Q to Claude API Proxy"
-echo "=========================================="
+echo "================================================"
+echo "  AMQ2API v2.0 - Account Pool & API Key Auth"
+echo "================================================"
+echo ""
 
 # 检查 Python 版本
-if ! command -v python3 &> /dev/null; then
-    echo "错误: 未找到 Python 3"
-    exit 1
+PYTHON_VERSION=$(python3 --version 2>&1 | awk '{print $2}')
+echo "Python 版本: $PYTHON_VERSION"
+
+# 检查依赖
+if ! python3 -c "import fastapi" 2>/dev/null; then
+    echo "❌ 依赖未安装，正在安装..."
+    pip install -r requirements.txt
 fi
 
-echo "Python 版本: $(python3 --version)"
-
-# 检查 .env 文件
-if [ ! -f .env ]; then
-    echo "警告: .env 文件不存在"
-    echo "请复制 .env.example 并填写配置信息："
-    echo "  cp .env.example .env"
-    echo "  然后编辑 .env 文件"
-    exit 1
+# 检查数据库
+if [ ! -f "data/amq2api.db" ]; then
+    echo "📦 初始化数据库..."
+    python3 -c "from app.models.database import init_db; init_db()"
+    echo "✅ 数据库初始化完成"
 fi
 
-# 检查虚拟环境
-if [ ! -d "venv" ]; then
-    echo "创建虚拟环境..."
-    python3 -m venv venv
-fi
+# 获取端口
+PORT=${PORT:-8080}
 
-# 激活虚拟环境
-echo "激活虚拟环境..."
-source venv/bin/activate
-
-# 安装依赖
-echo "安装依赖..."
-pip install -r requirements.txt
+echo ""
+echo "🚀 启动服务..."
+echo "   端口: $PORT"
+echo "   管理界面: http://localhost:$PORT/admin/dashboard"
+echo "   API 文档: http://localhost:$PORT/docs"
+echo ""
+echo "按 Ctrl+C 停止服务"
+echo "================================================"
+echo ""
 
 # 启动服务
-echo "=========================================="
-echo "启动服务..."
-echo "=========================================="
-python3 main.py
+python3 app_new.py

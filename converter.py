@@ -38,26 +38,16 @@ def get_current_timestamp() -> str:
 def map_claude_model_to_amazonq(claude_model: str) -> str:
     """
     将 Claude 模型名称映射到 Amazon Q 支持的模型名称
-
-    映射规则：
-    - claude-sonnet-4.5 或 claude-sonnet-4-5 开头 → claude-sonnet-4.5
-    - 其他所有模型 → claude-sonnet-4
+    现在直接返回原始模型名称，不进行映射
 
     Args:
         claude_model: Claude 模型名称
 
     Returns:
-        str: Amazon Q 模型名称
+        str: Amazon Q 模型名称（直接返回原始模型名称）
     """
-    # 转换为小写进行匹配
-    model_lower = claude_model.lower()
-
-    # 检查是否是 claude-sonnet-4.5 或 claude-sonnet-4-5 开头
-    if model_lower.startswith("claude-sonnet-4.5") or model_lower.startswith("claude-sonnet-4-5"):
-        return "claude-sonnet-4.5"
-
-    # 其他所有模型映射到 claude-sonnet-4
-    return "claude-sonnet-4"
+    # 直接返回原始模型名称，不进行映射
+    return claude_model
 
 
 def convert_claude_to_codewhisperer_request(

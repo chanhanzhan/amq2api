@@ -12,7 +12,7 @@ async def test_models_endpoint():
     print("测试 /v1/models 端点...")
     try:
         import httpx
-        from main import app
+        from app_new import app
         from fastapi.testclient import TestClient
         
         client = TestClient(app)

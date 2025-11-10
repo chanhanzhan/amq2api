@@ -198,23 +198,10 @@ def convert_openai_content_to_claude(content):
 def convert_openai_model_to_claude(openai_model: str) -> str:
     """
     Convert OpenAI model name to Claude model name
+    现在直接返回原始模型名称，不进行映射
     """
-    model_mapping = {
-        "gpt-4": "claude-sonnet-4",
-        "gpt-4-turbo": "claude-sonnet-4.5",
-        "gpt-4-turbo-preview": "claude-sonnet-4.5",
-        "gpt-4o": "claude-sonnet-4.5",
-        "gpt-4o-mini": "claude-sonnet-4",
-        "gpt-3.5-turbo": "claude-sonnet-4",
-    }
-    
-    # Check for exact match
-    if openai_model in model_mapping:
-        return model_mapping[openai_model]
-    
-    # Default to claude-sonnet-4.5 for unknown models
-    logger.info(f"Unknown OpenAI model {openai_model}, defaulting to claude-sonnet-4.5")
-    return "claude-sonnet-4.5"
+    # 直接返回原始模型名称，不进行映射
+    return openai_model
 
 
 def convert_claude_to_openai_stream(claude_event: dict, event_type: str) -> Optional[str]:
@@ -359,3 +346,119 @@ def convert_claude_to_openai_stream(claude_event: dict, event_type: str) -> Opti
         return f"data: {json.dumps(openai_chunk)}\n\ndata: [DONE]\n\n"
     
     return None
+
+
+def convert_claude_to_openai_non_stream(claude_events: list[dict]) -> dict:
+    """
+    Convert Claude SSE events to OpenAI non-stream format
+    
+    Args:
+        claude_events: List of Claude event dictionaries
+        
+    Returns:
+        OpenAI format response dictionary
+    """
+    import json
+    import uuid
+    from datetime import datetime
+    
+    # Accumulate content and tool calls
+    content_parts = []
+    tool_calls = []
+    finish_reason = "stop"
+    model = "gpt-4"
+    created = int(datetime.now().timestamp())
+    response_id = f"chatcmpl-{uuid.uuid4().hex[:8]}"
+    
+    # Process events
+    for event in claude_events:
+        event_type = event.get("type")
+        
+        if event_type == "message_start":
+            model = event.get("model", "gpt-4")
+            created = event.get("created", created)
+        
+        elif event_type == "content_block_delta":
+            delta = event.get("delta", {})
+            if delta.get("type") == "text_delta":
+                text = delta.get("text", "")
+                content_parts.append(text)
+        
+        elif event_type == "content_block_start":
+            content_block = event.get("content_block", {})
+            if content_block.get("type") == "tool_use":
+                tool_use_id = content_block.get("id")
+                tool_name = content_block.get("name")
+                tool_calls.append({
+                    "id": tool_use_id,
+                    "type": "function",
+                    "function": {
+                        "name": tool_name,
+                        "arguments": ""
+                    }
+                })
+        
+        elif event_type == "content_block_stop":
+            content_block = event.get("content_block", {})
+            if content_block and content_block.get("type") == "tool_use":
+                tool_use_id = content_block.get("id")
+                tool_input = content_block.get("input", {})
+                # Find and update the tool call
+                for tool_call in tool_calls:
+                    if tool_call["id"] == tool_use_id:
+                        tool_call["function"]["arguments"] = json.dumps(tool_input)
+                        break
+        
+        elif event_type == "message_stop":
+            stop_reason = event.get("stop_reason", "stop")
+            finish_reason_map = {
+                "end_turn": "stop",
+                "max_tokens": "length",
+                "stop_sequence": "stop",
+                "tool_use": "tool_calls"
+            }
+            finish_reason = finish_reason_map.get(stop_reason, "stop")
+    
+    # Build response
+    content = "".join(content_parts)
+    
+    choice = {
+        "index": 0,
+        "message": {
+            "role": "assistant",
+            "content": content if content else None
+        },
+        "finish_reason": finish_reason
+    }
+    
+    # Add tool calls if present
+    if tool_calls:
+        choice["message"]["tool_calls"] = tool_calls
+        choice["message"]["content"] = None  # OpenAI format: content is None when tool_calls exist
+    
+    # Extract usage from message_stop event if available
+    usage = {
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0
+    }
+    
+    # Try to find usage info in the last message_stop event
+    for event in reversed(claude_events):
+        if event.get("type") == "message_stop":
+            if "usage" in event:
+                usage = {
+                    "prompt_tokens": event["usage"].get("input_tokens", 0),
+                    "completion_tokens": event["usage"].get("output_tokens", 0),
+                    "total_tokens": event["usage"].get("input_tokens", 0) + event["usage"].get("output_tokens", 0)
+                }
+            break
+    
+    return {
+        "id": response_id,
+        "object": "chat.completion",
+        "created": created,
+        "model": model,
+        "choices": [choice],
+        "usage": usage
+    }

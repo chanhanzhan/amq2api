@@ -255,6 +255,58 @@
             color: #721c24;
             border: 1px solid #f5c6cb;
         }
+        
+        .stat-card .value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #2c3e50;
+            display: flex;
+            align-items: baseline;
+            gap: 0.25rem;
+        }
+        
+        .stat-card .value .unit {
+            font-size: 1rem;
+            font-weight: 400;
+            color: #666;
+        }
+        
+        .chart-container {
+            position: relative;
+            height: 300px;
+            margin-top: 1rem;
+        }
+        
+        .usage-table {
+            margin-top: 1rem;
+        }
+        
+        .usage-table th {
+            background: #f8f9fa;
+            font-weight: 600;
+            color: #666;
+            padding: 0.75rem;
+            text-align: left;
+        }
+        
+        .usage-table td {
+            padding: 0.75rem;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        .usage-table tr:hover {
+            background: #f8f9fa;
+        }
+        
+        .token-badge {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            background: #e3f2fd;
+            color: #1976d2;
+        }
     </style>
 </head>
 <body>
@@ -293,6 +345,28 @@
                     <h3>总请求数</h3>
                     <div class="value" id="total-requests">-</div>
                 </div>
+                <div class="stat-card">
+                    <h3>输入 Tokens</h3>
+                    <div class="value" id="total-input-tokens">-</div>
+                </div>
+                <div class="stat-card">
+                    <h3>输出 Tokens</h3>
+                    <div class="value" id="total-output-tokens">-</div>
+                </div>
+                <div class="stat-card">
+                    <h3>总 Tokens</h3>
+                    <div class="value" id="total-tokens">-</div>
+                </div>
+            </div>
+            
+            <div class="card" style="margin-top: 2rem;">
+                <h2>📊 Tokens 使用趋势（最近7天）</h2>
+                <canvas id="tokens-chart" style="max-height: 300px;"></canvas>
+            </div>
+            
+            <div class="card" style="margin-top: 1.5rem;">
+                <h2>📈 账号使用统计（最近7天）</h2>
+                <div id="account-usage-table"></div>
             </div>
         </div>
         
@@ -301,7 +375,10 @@
             <div class="card">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
                     <h2>账号池管理</h2>
-                    <button class="btn btn-primary" onclick="showAddAccountModal()">+ 添加账号</button>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <button class="btn btn-success" onclick="showUploadJsonModal()">📤 上传 JSON</button>
+                        <button class="btn btn-primary" onclick="showAddAccountModal()">+ 添加账号</button>
+                    </div>
                 </div>
                 <div id="accounts-table"></div>
             </div>
@@ -399,6 +476,44 @@
         </div>
     </div>
     
+    <!-- Upload JSON Modal -->
+    <div id="upload-json-modal" class="modal">
+        <div class="modal-content">
+            <h2>上传 AWS SSO JSON 文件</h2>
+            <div id="upload-json-alert"></div>
+            <form id="upload-json-form">
+                <div class="form-group">
+                    <label>账号名称 (可选)</label>
+                    <input type="text" name="name" id="upload-json-name" placeholder="留空将自动生成">
+                </div>
+                <div class="form-group">
+                    <label>JSON 文件 *</label>
+                    <input type="file" name="json_file" id="upload-json-file" accept=".json" required>
+                    <small style="color: #666; display: block; margin-top: 0.5rem;">
+                        支持从 ~/.aws/sso/cache/ 目录上传 JSON 文件
+                    </small>
+                </div>
+                <div class="form-group">
+                    <label>Profile ARN (可选)</label>
+                    <input type="text" name="profile_arn" id="upload-json-profile-arn">
+                </div>
+                <div class="form-group">
+                    <label>每分钟请求限制</label>
+                    <input type="number" name="requests_per_minute" id="upload-json-rpm" value="10">
+                </div>
+                <div class="form-group">
+                    <label>备注</label>
+                    <textarea name="notes" id="upload-json-notes"></textarea>
+                </div>
+                <div style="display: flex; gap: 1rem; justify-content: flex-end;">
+                    <button type="button" class="btn" onclick="closeModal('upload-json-modal')">取消</button>
+                    <button type="submit" class="btn btn-success">上传并添加</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="/static/admin.js"></script>
 </body>
 </html>

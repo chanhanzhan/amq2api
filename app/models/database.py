@@ -30,6 +30,12 @@ class Account(Base):
     last_health_check = Column(DateTime, nullable=True)
     health_check_error = Column(Text, nullable=True)
     
+    # Health check with error counting (time-window based)
+    error_count = Column(Integer, default=0)  # 当前时间窗口内的错误计数
+    last_error_time = Column(DateTime, nullable=True)  # 最后一次错误时间
+    first_error_time = Column(DateTime, nullable=True)  # 时间窗口内第一次错误时间（用于计算10分钟窗口）
+    auto_recover_at = Column(DateTime, nullable=True)  # 自动恢复时间（错误后30分钟）
+    
     # Usage statistics
     total_requests = Column(Integer, default=0)
     total_tokens = Column(Integer, default=0)

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>登录 - AMQ2API 管理面板</title>
+    <title>AMQ2API 登录</title>
     <style>
         * {
             margin: 0;
@@ -18,53 +18,52 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 20px;
+            padding: 1rem;
         }
         
         .login-container {
             background: white;
             border-radius: 12px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            padding: 3rem;
+            max-width: 450px;
             width: 100%;
-            max-width: 400px;
-            padding: 40px;
         }
         
-        .logo {
+        .login-header {
             text-align: center;
-            margin-bottom: 30px;
+            margin-bottom: 2rem;
         }
         
-        .logo h1 {
+        .login-header h1 {
             font-size: 2rem;
             color: #2c3e50;
-            margin-bottom: 5px;
+            margin-bottom: 0.5rem;
         }
         
-        .logo p {
-            color: #7f8c8d;
+        .login-header p {
+            color: #666;
             font-size: 0.9rem;
         }
         
         .form-group {
-            margin-bottom: 20px;
+            margin-bottom: 1.5rem;
         }
         
         .form-group label {
             display: block;
-            margin-bottom: 8px;
-            color: #555;
+            margin-bottom: 0.5rem;
             font-weight: 500;
-            font-size: 0.9rem;
+            color: #555;
         }
         
         .form-group input {
             width: 100%;
-            padding: 12px 15px;
+            padding: 0.75rem;
             border: 2px solid #e0e0e0;
             border-radius: 6px;
             font-size: 1rem;
-            transition: all 0.3s;
+            transition: border-color 0.3s;
         }
         
         .form-group input:focus {
@@ -72,11 +71,9 @@
             border-color: #667eea;
         }
         
-        .btn-login {
+        .btn {
             width: 100%;
-            padding: 14px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
+            padding: 0.75rem;
             border: none;
             border-radius: 6px;
             font-size: 1rem;
@@ -85,24 +82,21 @@
             transition: all 0.3s;
         }
         
-        .btn-login:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
         }
         
-        .btn-login:active {
-            transform: translateY(0);
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
         }
         
         .alert {
-            padding: 12px 15px;
+            padding: 1rem;
             border-radius: 6px;
-            margin-bottom: 20px;
+            margin-bottom: 1rem;
             display: none;
-        }
-        
-        .alert.show {
-            display: block;
         }
         
         .alert-error {
@@ -111,110 +105,107 @@
             border: 1px solid #fcc;
         }
         
-        .alert-success {
-            background: #efe;
-            color: #3c3;
-            border: 1px solid #cfc;
+        .alert.show {
+            display: block;
         }
         
-        .default-credentials {
-            margin-top: 20px;
-            padding: 15px;
-            background: #f8f9fa;
+        .info-box {
+            background: #f0f7ff;
+            border: 1px solid #b3d9ff;
             border-radius: 6px;
-            font-size: 0.85rem;
-            color: #666;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+            font-size: 0.9rem;
+            color: #0066cc;
         }
         
-        .default-credentials strong {
-            color: #333;
-        }
-        
-        .footer {
-            text-align: center;
-            margin-top: 30px;
-            color: #95a5a6;
-            font-size: 0.85rem;
+        .info-box strong {
+            display: block;
+            margin-bottom: 0.5rem;
         }
     </style>
 </head>
 <body>
     <div class="login-container">
-        <div class="logo">
+        <div class="login-header">
             <h1>🚀 AMQ2API</h1>
             <p>管理面板登录</p>
         </div>
         
-        <div id="alert" class="alert"></div>
+        <div class="alert alert-error" id="error-alert"></div>
+        
+        <div class="info-box">
+            <strong>首次使用？</strong>
+            默认管理员 API 密钥：<code>amq-admin-default-key-change-immediately</code><br>
+            登录后请立即创建新的管理员密钥并删除默认密钥。
+        </div>
         
         <form id="login-form">
             <div class="form-group">
-                <label>用户名</label>
-                <input type="text" id="username" name="username" required autofocus>
+                <label for="api-key">管理员 API 密钥</label>
+                <input 
+                    type="password" 
+                    id="api-key" 
+                    name="api-key" 
+                    placeholder="请输入管理员 API 密钥"
+                    required
+                    autofocus
+                >
             </div>
             
-            <div class="form-group">
-                <label>密码</label>
-                <input type="password" id="password" name="password" required>
-            </div>
-            
-            <button type="submit" class="btn-login">登录</button>
+            <button type="submit" class="btn btn-primary">登录</button>
         </form>
-        
-        <div class="default-credentials">
-            <strong>首次登录:</strong><br>
-            用户名: <code>admin</code><br>
-            密码: <code>admin123</code><br>
-            <small>⚠️ 登录后请立即修改密码</small>
-        </div>
-        
-        <div class="footer">
-            AMQ2API v2.0 © 2024
-        </div>
     </div>
     
     <script>
-        const form = document.getElementById('login-form');
-        const alertDiv = document.getElementById('alert');
-        
-        function showAlert(message, type = 'error') {
-            alertDiv.textContent = message;
-            alertDiv.className = `alert alert-${type} show`;
-            
-            setTimeout(() => {
-                alertDiv.classList.remove('show');
-            }, 5000);
-        }
-        
-        form.addEventListener('submit', async (e) => {
+        document.getElementById('login-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             
-            const username = document.getElementById('username').value;
-            const password = document.getElementById('password').value;
+            const apiKey = document.getElementById('api-key').value.trim();
+            const errorAlert = document.getElementById('error-alert');
             
+            if (!apiKey) {
+                errorAlert.textContent = '请输入 API 密钥';
+                errorAlert.classList.add('show');
+                return;
+            }
+            
+            // 验证 API key 是否有效
             try {
-                const response = await fetch('/admin/login', {
-                    method: 'POST',
+                const response = await fetch('/admin/stats/accounts', {
                     headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ username, password })
+                        'Authorization': `Bearer ${apiKey}`
+                    }
                 });
                 
-                const data = await response.json();
-                
-                if (response.ok) {
-                    showAlert('登录成功，正在跳转...', 'success');
-                    setTimeout(() => {
-                        window.location.href = '/admin/dashboard';
-                    }, 500);
-                } else {
-                    showAlert(data.detail || '登录失败，请检查用户名和密码');
+                if (response.status === 401 || response.status === 403) {
+                    errorAlert.textContent = 'API 密钥无效或权限不足';
+                    errorAlert.classList.add('show');
+                    return;
                 }
+                
+                if (!response.ok) {
+                    throw new Error('验证失败');
+                }
+                
+                // 保存 API key 到 localStorage
+                localStorage.setItem('admin_api_key', apiKey);
+                
+                // 跳转到管理面板
+                window.location.href = '/admin/dashboard';
+                
             } catch (error) {
-                showAlert('登录请求失败: ' + error.message);
+                errorAlert.textContent = '验证失败，请检查网络连接';
+                errorAlert.classList.add('show');
             }
         });
+        
+        // 检查是否已有 API key
+        const savedKey = localStorage.getItem('admin_api_key');
+        if (savedKey) {
+            // 自动填充
+            document.getElementById('api-key').value = savedKey;
+        }
     </script>
 </body>
 </html>

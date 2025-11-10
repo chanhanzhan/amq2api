@@ -23,6 +23,7 @@ wheels/
 .installed.cfg
 *.egg
 venv/
+*.db
 
 # IDE
 .idea/

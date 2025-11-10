@@ -26,6 +26,9 @@ class AccountPoolManager:
         Returns account with lowest current usage
         """
         async with self._lock:
+            # 检查并自动恢复账号（错误后30分钟自动恢复）
+            self._check_and_auto_recover_accounts(db)
+            
             # Get all active and healthy accounts
             accounts = db.query(Account).filter(
                 and_(
@@ -130,16 +133,123 @@ class AccountPoolManager:
             query = query.filter(Account.is_active == True)
         return query.all()
     
-    def update_health_status(self, db: Session, account_id: int, 
-                           is_healthy: bool, error_message: Optional[str] = None):
-        """Update account health status"""
-        account = db.query(Account).filter(Account.id == account_id).first()
-        if account:
-            account.is_healthy = is_healthy
-            account.last_health_check = datetime.now()
-            account.health_check_error = error_message
+    def _check_and_auto_recover_accounts(self, db: Session):
+        """检查并自动恢复账号（错误后30分钟自动恢复）"""
+        now = datetime.now()
+        # 查找需要自动恢复的账号（错误后30分钟）
+        accounts_to_recover = db.query(Account).filter(
+            and_(
+                Account.is_healthy == False,
+                Account.auto_recover_at != None,
+                Account.auto_recover_at <= now
+            )
+        ).all()
+        
+        for account in accounts_to_recover:
+            account.is_healthy = True
+            account.error_count = 0
+            account.first_error_time = None
+            account.last_error_time = None
+            account.health_check_error = None
+            account.auto_recover_at = None
+            account.last_health_check = now
+            logger.info(f"账号 {account.name} 自动恢复健康状态（错误后30分钟）")
+        
+        if accounts_to_recover:
             db.commit()
-            logger.info(f"Updated health status for {account.name}: {'healthy' if is_healthy else 'unhealthy'}")
+    
+    def _cleanup_old_errors(self, account: Account, now: datetime, error_window_minutes: int = 10):
+        """
+        清理超过时间窗口的错误计数
+        只统计最近 error_window_minutes 分钟内的错误
+        """
+        if not account.first_error_time:
+            return
+        
+        # 计算时间窗口
+        window_start = now - timedelta(minutes=error_window_minutes)
+        
+        # 如果第一次错误时间超过窗口，重置计数
+        if account.first_error_time < window_start:
+            account.error_count = 0
+            account.first_error_time = None
+            account.last_error_time = None
+            logger.debug(f"账号 {account.name} 错误计数已过期，已重置")
+    
+    def update_health_status(self, db: Session, account_id: int, 
+                           is_healthy: bool, error_message: Optional[str] = None,
+                           error_window_minutes: int = 10):
+        """
+        Update account health status with time-window based error counting
+        - 只统计最近 error_window_minutes 分钟内的错误
+        - 错误5次以上才标记为异常
+        - 错误后30分钟自动恢复
+        """
+        account = db.query(Account).filter(Account.id == account_id).first()
+        if not account:
+            return
+        
+        now = datetime.now()
+        
+        if is_healthy:
+            # 成功请求：重置错误计数
+            if account.error_count > 0:
+                account.error_count = 0
+                account.first_error_time = None
+                account.last_error_time = None
+                account.health_check_error = None
+                account.auto_recover_at = None
+                if not account.is_healthy:
+                    account.is_healthy = True
+                    logger.info(f"账号 {account.name} 恢复健康状态（成功请求）")
+        else:
+            # 清理超过时间窗口的旧错误
+            self._cleanup_old_errors(account, now, error_window_minutes)
+            
+            # 检查是否在时间窗口内
+            window_start = now - timedelta(minutes=error_window_minutes)
+            
+            # 如果这是时间窗口内的第一次错误，设置 first_error_time
+            if not account.first_error_time or account.first_error_time < window_start:
+                account.first_error_time = now
+                account.error_count = 1
+            else:
+                # 在时间窗口内，增加错误计数
+                account.error_count = (account.error_count or 0) + 1
+            
+            account.last_error_time = now
+            account.last_health_check = now
+            account.health_check_error = error_message
+            
+            # 错误5次以上才标记为异常
+            if account.error_count >= 5:
+                if account.is_healthy:
+                    account.is_healthy = False
+                    # 设置30分钟后自动恢复
+                    account.auto_recover_at = now + timedelta(minutes=30)
+                    logger.warning(f"账号 {account.name} 标记为异常（最近{error_window_minutes}分钟内错误 {account.error_count} 次）")
+                else:
+                    # 如果已经是异常状态，更新自动恢复时间
+                    if not account.auto_recover_at or account.auto_recover_at < now:
+                        account.auto_recover_at = now + timedelta(minutes=30)
+            else:
+                logger.info(f"账号 {account.name} 错误计数: {account.error_count}/5（最近{error_window_minutes}分钟内，未达到异常阈值）")
+        
+        db.commit()
+    
+    def record_success(self, db: Session, account_id: int):
+        """记录成功请求，重置错误计数"""
+        account = db.query(Account).filter(Account.id == account_id).first()
+        if account and account.error_count > 0:
+            account.error_count = 0
+            account.first_error_time = None
+            account.last_error_time = None
+            account.health_check_error = None
+            account.auto_recover_at = None
+            if not account.is_healthy:
+                account.is_healthy = True
+                logger.info(f"账号 {account.name} 恢复健康状态（成功请求）")
+            db.commit()
     
     def increment_token_usage(self, db: Session, account_id: int, tokens: int):
         """Increment token usage for account"""
