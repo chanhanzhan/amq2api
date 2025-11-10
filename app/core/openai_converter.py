@@ -107,7 +107,7 @@ def convert_openai_to_claude(openai_request: dict) -> dict:
     if "stream" in openai_request:
         claude_request["stream"] = openai_request["stream"]
     else:
-        claude_request["stream"] = True  # Default to streaming
+        claude_request["stream"] = False  # Default to non-streaming (OpenAI API standard)
     
     # Convert tools if present
     if "tools" in openai_request:
@@ -375,14 +375,20 @@ def convert_claude_to_openai_non_stream(claude_events: list[dict]) -> dict:
         event_type = event.get("type")
         
         if event_type == "message_start":
-            model = event.get("model", "gpt-4")
+            # Extract model from message object if available
+            message = event.get("message", {})
+            if message:
+                model = message.get("model", event.get("model", "gpt-4"))
+            else:
+                model = event.get("model", "gpt-4")
             created = event.get("created", created)
         
         elif event_type == "content_block_delta":
             delta = event.get("delta", {})
             if delta.get("type") == "text_delta":
                 text = delta.get("text", "")
-                content_parts.append(text)
+                if text:  # Only append non-empty text
+                    content_parts.append(text)
         
         elif event_type == "content_block_start":
             content_block = event.get("content_block", {})
@@ -422,6 +428,9 @@ def convert_claude_to_openai_non_stream(claude_events: list[dict]) -> dict:
     # Build response
     content = "".join(content_parts)
     
+    # Debug logging
+    logger.debug(f"convert_claude_to_openai_non_stream: content_parts count={len(content_parts)}, content length={len(content)}, tool_calls count={len(tool_calls)}")
+    
     choice = {
         "index": 0,
         "message": {
@@ -434,7 +443,10 @@ def convert_claude_to_openai_non_stream(claude_events: list[dict]) -> dict:
     # Add tool calls if present
     if tool_calls:
         choice["message"]["tool_calls"] = tool_calls
-        choice["message"]["content"] = None  # OpenAI format: content is None when tool_calls exist
+        # OpenAI format: content is None when tool_calls exist, but only if there's no text content
+        # If both text and tool_calls exist, keep the text content
+        if not content:
+            choice["message"]["content"] = None
     
     # Extract usage from message_stop event if available
     usage = {

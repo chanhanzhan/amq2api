@@ -203,29 +203,10 @@ async def list_models():
         }
     
     models = [
-        # Claude 原生模型
-        create_model("claude-sonnet-4.5"),
-        create_model("claude-sonnet-4-5"),
-        create_model("claude-sonnet-4"),
-        create_model("claude-3-5-sonnet-20241022"),
-        create_model("claude-3-5-sonnet"),
-        create_model("claude-3-opus"),
-        create_model("claude-3-sonnet"),
-        create_model("claude-3-haiku"),
-        # OpenAI 模型（直接使用，不映射）
-        create_model("gpt-4", "openai"),
-        create_model("gpt-4-turbo", "openai"),
-        create_model("gpt-4-turbo-preview", "openai"),
-        create_model("gpt-4-0125-preview", "openai"),
-        create_model("gpt-4-1106-preview", "openai"),
-        create_model("gpt-4o", "openai"),
-        create_model("gpt-4o-2024-05-13", "openai"),
-        create_model("gpt-4o-mini", "openai"),
-        create_model("gpt-4o-mini-2024-07-18", "openai"),
-        create_model("gpt-3.5-turbo", "openai"),
-        create_model("gpt-3.5-turbo-16k", "openai"),
-        create_model("gpt-3.5-turbo-1106", "openai"),
-        create_model("gpt-3.5-turbo-0125", "openai"),
+        # 官方支持的 Claude 模型
+        create_model("claude-3.5-sonnet"),
+        create_model("claude-3.7-sonnet"),
+        create_model("claude-4-sonnet"),
     ]
     
     return {
@@ -423,7 +404,7 @@ async def create_message(request: Request, db: Session = Depends(get_db)):
                 try:
                     response_time = time.time() - start_time
                     usage_log = UsageLog(
-                        api_key_id=api_key_info.id if api_key_info else None,
+                        api_key_id=api_key_info.get("api_key_id") if api_key_info else None,
                         account_id=account.id,
                         model=model,
                         endpoint="/v1/messages",
@@ -442,10 +423,7 @@ async def create_message(request: Request, db: Session = Depends(get_db)):
                     account.total_tokens += (input_tokens + output_tokens)
                     account.last_used = datetime.now()
                     
-                    # 更新 API key 统计
-                    if api_key_info:
-                        api_key_info.total_requests += 1
-                        api_key_info.last_used = datetime.now()
+                    # 注意：API key 统计已在 verify_api_key 的 validate_key 中更新，无需重复更新
                     
                     db.commit()
                 except Exception as e:
@@ -604,41 +582,36 @@ async def create_message_non_stream(request: Request, db: Session, original_mode
                     raise HTTPException(status_code=502, detail=f"上游服务错误: {str(e)}")
         
         # 收集所有 SSE 事件
-        current_event_data = None
         async for sse_event in handle_amazonq_stream(byte_stream(), model=model, request_data=request_data):
             # 解析 SSE 事件（格式: "event: {type}\ndata: {json}\n\n"）
+            # 每个 sse_event 是一个完整的 SSE 事件字符串
             lines = sse_event.strip().split('\n')
             for line in lines:
                 line = line.strip()
                 if not line:
-                    # 空行表示事件结束，保存当前事件
-                    if current_event_data:
-                        claude_events.append(current_event_data)
-                        current_event_data = None
                     continue
                 
-                if line.startswith("event: "):
-                    # 事件类型，可以忽略
-                    continue
-                elif line.startswith("data: "):
+                if line.startswith("data: "):
                     data_str = line[6:].strip()
                     if data_str == "[DONE]":
                         # 流结束
-                        if current_event_data:
-                            claude_events.append(current_event_data)
                         break
                     try:
                         event_data = json.loads(data_str)
-                        current_event_data = event_data
+                        claude_events.append(event_data)
                     except json.JSONDecodeError:
                         continue
         
-        # 确保最后一个事件被保存
-        if current_event_data:
-            claude_events.append(current_event_data)
+        # 调试：记录收集到的事件
+        logger.debug(f"收集到 {len(claude_events)} 个 Claude 事件")
+        for i, event in enumerate(claude_events):
+            logger.debug(f"事件 {i}: type={event.get('type')}, keys={list(event.keys())}")
         
         # 转换为 OpenAI 非流格式
         openai_response = convert_claude_to_openai_non_stream(claude_events)
+        
+        # 调试：记录转换后的响应
+        logger.debug(f"转换后的 OpenAI 响应: content={openai_response.get('choices', [{}])[0].get('message', {}).get('content')}")
         
         # 更新模型名称为原始请求的模型
         openai_response["model"] = original_model
@@ -655,7 +628,7 @@ async def create_message_non_stream(request: Request, db: Session, original_mode
             output_tokens = usage.get("completion_tokens", 0)
             
             usage_log = UsageLog(
-                api_key_id=api_key_info.id if api_key_info else None,
+                api_key_id=api_key_info.get("api_key_id") if api_key_info else None,
                 account_id=account.id,
                 model=original_model,
                 endpoint="/v1/chat/completions",
@@ -674,10 +647,7 @@ async def create_message_non_stream(request: Request, db: Session, original_mode
             account.total_tokens += (input_tokens + output_tokens)
             account.last_used = datetime.now()
             
-            # 更新 API key 统计
-            if api_key_info:
-                api_key_info.total_requests += 1
-                api_key_info.last_used = datetime.now()
+            # 注意：API key 统计已在 verify_api_key 的 validate_key 中更新，无需重复更新
             
             db.commit()
         except Exception as e:
@@ -720,8 +690,8 @@ async def create_chat_completion(request: Request, db: Session = Depends(get_db)
         
         logger.info(f"收到 OpenAI API 请求: {openai_request.get('model', 'unknown')}")
         
-        # 检查是否为流式请求
-        is_stream = openai_request.get("stream", True)
+        # 检查是否为流式请求（默认非流式，除非明确指定 stream: true）
+        is_stream = openai_request.get("stream", False)
         
         # 转换为 Claude 格式
         claude_request = convert_openai_to_claude(openai_request)
@@ -731,14 +701,16 @@ async def create_chat_completion(request: Request, db: Session = Depends(get_db)
         
         # 创建一个伪造的请求，包含转换后的 Claude 格式数据
         class FakeRequest:
-            def __init__(self, json_data, headers):
+            def __init__(self, json_data, headers, original_request):
                 self._json = json_data
                 self.headers = headers
+                self.client = original_request.client
+                self._original_request = original_request
             
             async def json(self):
                 return self._json
         
-        fake_request = FakeRequest(claude_request, request.headers)
+        fake_request = FakeRequest(claude_request, request.headers, request)
         
         # 如果是非流请求，收集所有事件并返回完整响应
         if not is_stream:
@@ -776,7 +748,7 @@ def parse_claude_request(data: dict) -> ClaudeRequest:
             ))
     
     return ClaudeRequest(
-        model=data.get("model", "claude-sonnet-4.5"),
+        model=data.get("model", "claude-3.5-sonnet"),
         messages=messages,
         max_tokens=data.get("max_tokens", 4096),
         temperature=data.get("temperature"),

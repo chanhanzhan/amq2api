@@ -17,7 +17,8 @@ from models import (
     Message,
     ContentBlock,
     Delta,
-    Usage
+    Usage,
+    AssistantResponseEnd
 )
 
 logger = logging.getLogger(__name__)
@@ -166,7 +167,7 @@ def build_claude_sse_event(event_type: str, data: Dict[str, Any]) -> str:
     return f"event: {event_type}\ndata: {json_data}\n\n"
 
 
-def build_claude_message_start_event(conversation_id: str, model: str = "claude-sonnet-4.5") -> str:
+def build_claude_message_start_event(conversation_id: str, model: str = "claude-3.5-sonnet") -> str:
     """构建 message_start 事件"""
     data = {
         "type": "message_start",

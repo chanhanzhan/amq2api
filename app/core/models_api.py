@@ -69,27 +69,7 @@ def get_all_models() -> List[Dict[str, Any]]:
             "permission": []
         })
     
-    # 添加一些常见的变体格式
-    variant_models = [
-        "claude-sonnet-4.5",
-        "claude-sonnet-4-5",
-        "claude-sonnet-4",
-        "claude-3-5-sonnet-20241022",
-        "claude-3-5-sonnet",
-        "claude-3-opus",
-        "claude-3-sonnet",
-        "claude-3-haiku",
-    ]
-    
-    for model_id in variant_models:
-        if not any(m["id"] == model_id for m in models):
-            models.append({
-                "id": model_id,
-                "object": "model",
-                "created": current_time,
-                "owned_by": "anthropic",
-                "permission": []
-            })
+    # 不再添加变体格式，只使用官方支持的三个模型
     
     # OpenAI 兼容模型
     openai_models = [

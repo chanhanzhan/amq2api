@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 class AmazonQStreamHandler:
     """Amazon Q Event Stream 处理器"""
 
-    def __init__(self, model: str = "claude-sonnet-4.5", request_data: Optional[dict] = None):
+    def __init__(self, model: str = "claude-3.5-sonnet", request_data: Optional[dict] = None):
         # 响应文本累积缓冲区
         self.response_buffer: list[str] = []
 
@@ -469,7 +469,7 @@ class AmazonQStreamHandler:
 
 async def handle_amazonq_stream(
     upstream_bytes: AsyncIterator[bytes],
-    model: str = "claude-sonnet-4.5",
+    model: str = "claude-3.5-sonnet",
     request_data: Optional[dict] = None
 ) -> AsyncIterator[str]:
     """

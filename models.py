@@ -94,7 +94,7 @@ class UserInputMessage:
     content: str
     userInputMessageContext: UserInputMessageContext
     origin: str = "CLI"
-    modelId: str = "claude-sonnet-4.5"
+    modelId: str = "claude-3.5-sonnet"
 
 
 @dataclass
