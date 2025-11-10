@@ -286,6 +286,20 @@ async def create_message(request: Request, db: Session = Depends(get_db)):
         
         final_request = codewhisperer_dict
         
+        # 调试：记录请求的关键信息（用于调试400错误）
+        import json
+        logger.info(f"请求结构检查: conversationId={codewhisperer_dict.get('conversationState', {}).get('conversationId')}, "
+                    f"history_count={len(codewhisperer_dict.get('conversationState', {}).get('history', []))}, "
+                    f"has_userInputMessageContext={bool(codewhisperer_dict.get('conversationState', {}).get('currentMessage', {}).get('userInputMessage', {}).get('userInputMessageContext'))}, "
+                    f"has_envState={bool(codewhisperer_dict.get('conversationState', {}).get('currentMessage', {}).get('userInputMessage', {}).get('userInputMessageContext', {}).get('envState'))}, "
+                    f"modelId={codewhisperer_dict.get('conversationState', {}).get('currentMessage', {}).get('userInputMessage', {}).get('modelId')}")
+        # 记录完整请求体（用于调试400错误）
+        try:
+            request_json = json.dumps(final_request, ensure_ascii=False, indent=2)
+            logger.info(f"完整请求体（前2000字符）:\n{request_json[:2000]}...")
+        except Exception as e:
+            logger.warning(f"无法序列化请求体: {e}")
+        
         # 使用账号的token获取认证头
         from auth import refresh_token_for_account
         
@@ -497,6 +511,20 @@ async def create_message_non_stream(request: Request, db: Session, original_mode
             codewhisperer_dict["conversationState"] = conversation_state
         
         final_request = codewhisperer_dict
+        
+        # 调试：记录请求的关键信息（非流式，用于调试400错误）
+        import json
+        logger.info(f"请求结构检查（非流）: conversationId={codewhisperer_dict.get('conversationState', {}).get('conversationId')}, "
+                    f"history_count={len(codewhisperer_dict.get('conversationState', {}).get('history', []))}, "
+                    f"has_userInputMessageContext={bool(codewhisperer_dict.get('conversationState', {}).get('currentMessage', {}).get('userInputMessage', {}).get('userInputMessageContext'))}, "
+                    f"has_envState={bool(codewhisperer_dict.get('conversationState', {}).get('currentMessage', {}).get('userInputMessage', {}).get('userInputMessageContext', {}).get('envState'))}, "
+                    f"modelId={codewhisperer_dict.get('conversationState', {}).get('currentMessage', {}).get('userInputMessage', {}).get('modelId')}")
+        # 记录完整请求体（用于调试400错误）
+        try:
+            request_json = json.dumps(final_request, ensure_ascii=False, indent=2)
+            logger.info(f"完整请求体（非流，前2000字符）:\n{request_json[:2000]}...")
+        except Exception as e:
+            logger.warning(f"无法序列化请求体: {e}")
         
         # 使用账号的token获取认证头
         from auth import refresh_token_for_account

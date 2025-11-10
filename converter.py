@@ -425,15 +425,17 @@ def codewhisperer_request_to_dict(request: CodeWhispererRequest) -> Dict[str, An
         Dict[str, Any]: 字典表示
     """
     # 构建 userInputMessageContext
-    user_input_message_context = {}
-
-    # 只有当有 tools 时才添加 envState 和 tools
-    tools = request.conversationState.currentMessage.userInputMessage.userInputMessageContext.tools
-    if tools:
-        user_input_message_context["envState"] = {
+    # envState 应该总是存在，即使没有 tools
+    user_input_message_context = {
+        "envState": {
             "operatingSystem": request.conversationState.currentMessage.userInputMessage.userInputMessageContext.envState.operatingSystem,
             "currentWorkingDirectory": request.conversationState.currentMessage.userInputMessage.userInputMessageContext.envState.currentWorkingDirectory
         }
+    }
+
+    # tools 字段应该总是存在，即使为空数组
+    tools = request.conversationState.currentMessage.userInputMessage.userInputMessageContext.tools
+    if tools:
         user_input_message_context["tools"] = [
             {
                 "toolSpecification": {
@@ -444,6 +446,9 @@ def codewhisperer_request_to_dict(request: CodeWhispererRequest) -> Dict[str, An
             }
             for tool in tools
         ]
+    else:
+        # 即使没有 tools，也包含空数组以符合 API 格式
+        user_input_message_context["tools"] = []
 
     # 如果有 toolResults，添加到上下文中
     tool_results = request.conversationState.currentMessage.userInputMessage.userInputMessageContext.toolResults
@@ -466,8 +471,14 @@ def codewhisperer_request_to_dict(request: CodeWhispererRequest) -> Dict[str, An
         }
     }
 
-    # 添加 profileArn（如果存在）
+    # 添加 profileArn（如果存在且是有效的 ARN 格式）
+    # profileArn 必须是有效的 ARN 格式（以 "arn:" 开头）
     if request.profileArn:
-        result["profileArn"] = request.profileArn
+        # 验证是否为有效的 ARN 格式
+        if request.profileArn.startswith("arn:"):
+            result["profileArn"] = request.profileArn
+        else:
+            # 如果不是有效的 ARN 格式，记录警告但不包含该字段
+            logger.warning(f"profileArn 不是有效的 ARN 格式，已忽略: {request.profileArn}")
 
     return result

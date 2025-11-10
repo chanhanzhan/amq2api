@@ -22,55 +22,68 @@ class AccountPoolManager:
     
     async def get_next_account(self, db: Session) -> Optional[Account]:
         """
-        Get next available account from the pool using round-robin
-        Returns account with lowest current usage
+        Get next available account from the pool using round-robin (轮询模式)
         """
         async with self._lock:
             # 检查并自动恢复账号（错误后30分钟自动恢复）
             self._check_and_auto_recover_accounts(db)
             
-            # Get all active and healthy accounts
+            # Get all active and healthy accounts, ordered by ID for consistent ordering
             accounts = db.query(Account).filter(
                 and_(
                     Account.is_active == True,
                     Account.is_healthy == True
                 )
-            ).all()
+            ).order_by(Account.id).all()
             
             if not accounts:
                 logger.error("No active and healthy accounts available in pool")
                 return None
             
-            # Find account with lowest current RPM
-            best_account = min(accounts, key=lambda a: a.current_rpm)
+            # 轮询模式：按顺序选择账号
+            # 找到当前索引对应的账号，如果超出范围则从头开始
+            available_count = len(accounts)
+            if self._current_index >= available_count:
+                self._current_index = 0
             
-            # Check if account is rate limited
-            if best_account.rpm_reset_at and datetime.now() < best_account.rpm_reset_at:
-                if best_account.current_rpm >= best_account.requests_per_minute:
-                    logger.warning(f"Account {best_account.name} is rate limited")
-                    # Try to find another account
-                    for account in accounts:
-                        if account.id != best_account.id:
-                            if not account.rpm_reset_at or datetime.now() >= account.rpm_reset_at:
-                                best_account = account
-                                break
-                            if account.current_rpm < account.requests_per_minute:
-                                best_account = account
-                                break
+            # 从当前索引开始，查找第一个未达到速率限制的账号
+            selected_account = None
+            start_index = self._current_index
+            
+            for i in range(available_count):
+                idx = (start_index + i) % available_count
+                account = accounts[idx]
+                
+                # 检查是否达到速率限制
+                is_rate_limited = False
+                if account.rpm_reset_at and datetime.now() < account.rpm_reset_at:
+                    if account.current_rpm >= account.requests_per_minute:
+                        is_rate_limited = True
+                
+                if not is_rate_limited:
+                    selected_account = account
+                    self._current_index = (idx + 1) % available_count
+                    break
+            
+            # 如果所有账号都达到速率限制，选择当前索引的账号（即使被限速）
+            if not selected_account:
+                selected_account = accounts[start_index]
+                self._current_index = (start_index + 1) % available_count
+                logger.warning(f"所有账号都达到速率限制，使用账号: {selected_account.name}")
             
             # Reset RPM counter if needed
-            if not best_account.rpm_reset_at or datetime.now() >= best_account.rpm_reset_at:
-                best_account.current_rpm = 0
-                best_account.rpm_reset_at = datetime.now() + timedelta(minutes=1)
+            if not selected_account.rpm_reset_at or datetime.now() >= selected_account.rpm_reset_at:
+                selected_account.current_rpm = 0
+                selected_account.rpm_reset_at = datetime.now() + timedelta(minutes=1)
             
             # Increment usage
-            best_account.current_rpm += 1
-            best_account.total_requests += 1
-            best_account.last_used = datetime.now()
+            selected_account.current_rpm += 1
+            selected_account.total_requests += 1
+            selected_account.last_used = datetime.now()
             db.commit()
             
-            logger.info(f"Selected account: {best_account.name} (RPM: {best_account.current_rpm}/{best_account.requests_per_minute})")
-            return best_account
+            logger.info(f"Selected account: {selected_account.name} (RPM: {selected_account.current_rpm}/{selected_account.requests_per_minute}, Round-robin index: {start_index})")
+            return selected_account
     
     def add_account(self, db: Session, name: str, refresh_token: str, 
                    client_id: str, client_secret: str, profile_arn: Optional[str] = None,
