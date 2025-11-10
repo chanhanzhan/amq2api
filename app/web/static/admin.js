@@ -3,24 +3,62 @@
 // API base URL
 const API_BASE = '';
 
-// Logout function
-async function logout() {
-    if (!confirm('确定要登出吗？')) return;
-    
-    try {
-        await fetch(`${API_BASE}/admin/logout`, { method: 'POST' });
-        window.location.href = '/admin/login-page';
-    } catch (error) {
-        console.error('Logout error:', error);
-        window.location.href = '/admin/login-page';
+// API Key management
+function getApiKey() {
+    return localStorage.getItem('admin_api_key');
+}
+
+function setApiKey(key) {
+    localStorage.setItem('admin_api_key', key);
+}
+
+function clearApiKey() {
+    if (confirm('确定要清除 API 密钥吗？')) {
+        localStorage.removeItem('admin_api_key');
+        promptForApiKey();
     }
+}
+
+function promptForApiKey() {
+    const key = prompt('请输入管理员 API 密钥:\n\n默认密钥: amq-admin-default-key-change-immediately\n\n(请在创建新的管理员密钥后立即更换)');
+    if (key) {
+        setApiKey(key);
+        // Reload to apply new key
+        location.reload();
+    } else {
+        alert('需要管理员 API 密钥才能访问管理面板');
+    }
+}
+
+// Make authenticated request
+async function fetchWithAuth(url, options = {}) {
+    const apiKey = getApiKey();
+    if (!apiKey) {
+        promptForApiKey();
+        throw new Error('No API key');
+    }
+    
+    const headers = {
+        ...options.headers,
+        'Authorization': `Bearer ${apiKey}`
+    };
+    
+    const response = await fetch(url, { ...options, headers });
+    
+    // Handle auth errors
+    if (response.status === 401 || response.status === 403) {
+        alert('API 密钥无效或权限不足，请重新输入');
+        clearApiKey();
+        throw new Error('Authentication failed');
+    }
+    
+    return response;
 }
 
 // Handle authentication errors
 function handleAuthError(error) {
-    if (error.message && error.message.includes('401')) {
-        alert('会话已过期，请重新登录');
-        window.location.href = '/admin/login-page';
+    if (error.message && (error.message.includes('401') || error.message.includes('403'))) {
+        clearApiKey();
         return true;
     }
     return false;
@@ -56,8 +94,8 @@ function showSection(section) {
 async function loadDashboard() {
     try {
         const [accountStats, keyStats] = await Promise.all([
-            fetch(`${API_BASE}/admin/stats/accounts`).then(r => r.json()),
-            fetch(`${API_BASE}/admin/stats/api-keys`).then(r => r.json())
+            fetchWithAuth(`${API_BASE}/admin/stats/accounts`).then(r => r.json()),
+            fetchWithAuth(`${API_BASE}/admin/stats/api-keys`).then(r => r.json())
         ]);
         
         document.getElementById('total-accounts').textContent = accountStats.total_accounts;
@@ -75,7 +113,7 @@ async function loadDashboard() {
 // Load accounts
 async function loadAccounts() {
     try {
-        const accounts = await fetch(`${API_BASE}/admin/accounts`).then(r => r.json());
+        const accounts = await fetchWithAuth(`${API_BASE}/admin/accounts`).then(r => r.json());
         const tableHtml = `
             <table>
                 <thead>
@@ -119,7 +157,7 @@ async function loadAccounts() {
 // Load API keys
 async function loadApiKeys() {
     try {
-        const keys = await fetch(`${API_BASE}/admin/api-keys`).then(r => r.json());
+        const keys = await fetchWithAuth(`${API_BASE}/admin/api-keys`).then(r => r.json());
         const tableHtml = `
             <table>
                 <thead>
@@ -184,7 +222,7 @@ document.getElementById('add-account-form').addEventListener('submit', async (e)
     data.requests_per_minute = parseInt(data.requests_per_minute);
     
     try {
-        const response = await fetch(`${API_BASE}/admin/accounts`, {
+        const response = await fetchWithAuth(`${API_BASE}/admin/accounts`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(data)
@@ -216,9 +254,10 @@ document.getElementById('add-key-form').addEventListener('submit', async (e) => 
     
     data.requests_per_minute = parseInt(data.requests_per_minute);
     data.requests_per_day = parseInt(data.requests_per_day);
+    data.is_admin = data.is_admin === 'true';  // Convert checkbox to boolean
     
     try {
-        const response = await fetch(`${API_BASE}/admin/api-keys`, {
+        const response = await fetchWithAuth(`${API_BASE}/admin/api-keys`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(data)
@@ -235,7 +274,9 @@ document.getElementById('add-key-form').addEventListener('submit', async (e) => 
             alert('创建失败: ' + error.detail);
         }
     } catch (error) {
-        alert('创建失败: ' + error.message);
+        if (!handleAuthError(error)) {
+            alert('创建失败: ' + error.message);
+        }
     }
 });
 
@@ -244,7 +285,7 @@ async function deleteAccount(id) {
     if (!confirm('确定要删除此账号吗？')) return;
     
     try {
-        const response = await fetch(`${API_BASE}/admin/accounts/${id}`, {
+        const response = await fetchWithAuth(`${API_BASE}/admin/accounts/${id}`, {
             method: 'DELETE'
         });
         
@@ -263,7 +304,7 @@ async function deleteKey(id) {
     if (!confirm('确定要删除此API密钥吗？')) return;
     
     try {
-        const response = await fetch(`${API_BASE}/admin/api-keys/${id}`, {
+        const response = await fetchWithAuth(`${API_BASE}/admin/api-keys/${id}`, {
             method: 'DELETE'
         });
         
@@ -282,7 +323,7 @@ async function revokeKey(id) {
     if (!confirm('确定要吊销此API密钥吗？')) return;
     
     try {
-        const response = await fetch(`${API_BASE}/admin/api-keys/${id}/revoke`, {
+        const response = await fetchWithAuth(`${API_BASE}/admin/api-keys/${id}/revoke`, {
             method: 'POST'
         });
         
@@ -308,5 +349,10 @@ document.querySelectorAll('.modal').forEach(modal => {
 
 // Load dashboard on page load
 document.addEventListener('DOMContentLoaded', () => {
-    loadDashboard();
+    // Check if API key exists
+    if (!getApiKey()) {
+        promptForApiKey();
+    } else {
+        loadDashboard();
+    }
 });

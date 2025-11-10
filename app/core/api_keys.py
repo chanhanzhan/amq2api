@@ -23,7 +23,7 @@ class ApiKeyManager:
     
     def create_key(self, db: Session, name: str, description: Optional[str] = None,
                   requests_per_minute: int = 60, requests_per_day: int = 10000,
-                  expires_days: Optional[int] = None) -> ApiKey:
+                  expires_days: Optional[int] = None, is_admin: bool = False) -> ApiKey:
         """Create a new API key"""
         key = self.generate_key()
         expires_at = None
@@ -34,6 +34,7 @@ class ApiKeyManager:
             key=key,
             name=name,
             description=description,
+            is_admin=is_admin,
             requests_per_minute=requests_per_minute,
             requests_per_day=requests_per_day,
             expires_at=expires_at
@@ -41,7 +42,7 @@ class ApiKeyManager:
         db.add(api_key)
         db.commit()
         db.refresh(api_key)
-        logger.info(f"Created new API key: {name}")
+        logger.info(f"Created new API key: {name} (admin={is_admin})")
         return api_key
     
     def validate_key(self, db: Session, key: str) -> Optional[ApiKey]:

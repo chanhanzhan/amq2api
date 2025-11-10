@@ -57,6 +57,7 @@ class ApiKey(Base):
     
     # Status
     is_active = Column(Boolean, default=True)
+    is_admin = Column(Boolean, default=False)  # Admin privilege for web interface
     
     # Usage statistics
     total_requests = Column(Integer, default=0)
@@ -180,28 +181,28 @@ def init_db():
     """Initialize database tables"""
     Base.metadata.create_all(bind=engine)
     
-    # Create default admin user if none exists
+    # Create default admin API key if none exists
     db = SessionLocal()
     try:
-        admin_count = db.query(AdminUser).count()
-        if admin_count == 0:
-            # Create default admin user
-            password_hash, salt = AdminUser.hash_password("admin123")
-            default_admin = AdminUser(
-                username="admin",
-                password_hash=password_hash,
-                salt=salt,
-                email="admin@example.com",
-                full_name="Administrator",
-                is_superuser=True
+        admin_key_count = db.query(ApiKey).filter(ApiKey.is_admin == True).count()
+        if admin_key_count == 0:
+            # Create default admin API key
+            default_key = "amq-admin-default-key-change-immediately"
+            default_admin_key = ApiKey(
+                key=default_key,
+                name="默认管理员密钥",
+                description="系统自动创建的管理员密钥，请立即更换",
+                is_admin=True,
+                is_active=True,
+                requests_per_minute=1000,
+                requests_per_day=100000
             )
-            db.add(default_admin)
+            db.add(default_admin_key)
             db.commit()
             print("=" * 60)
-            print("⚠️  创建了默认管理员账号:")
-            print("   用户名: admin")
-            print("   密码: admin123")
-            print("   请立即登录后修改密码!")
+            print("⚠️  创建了默认管理员 API 密钥:")
+            print(f"   密钥: {default_key}")
+            print("   请立即登录管理面板后创建新的管理员密钥并删除此默认密钥!")
             print("=" * 60)
     finally:
         db.close()

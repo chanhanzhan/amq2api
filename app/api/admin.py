@@ -8,10 +8,10 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.models.database import get_db, Account, ApiKey, AdminUser
+from app.models.database import get_db, Account, ApiKey
 from app.core.account_pool import account_pool_manager
 from app.core.api_keys import api_key_manager
-from app.api.auth import get_current_admin_user
+from app.core.admin_api_auth import get_admin_api_key
 
 logger = logging.getLogger(__name__)
 
@@ -67,12 +67,14 @@ class ApiKeyCreate(BaseModel):
     requests_per_minute: int = 60
     requests_per_day: int = 10000
     expires_days: Optional[int] = None
+    is_admin: bool = False  # Add admin flag
 
 
 class ApiKeyUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     is_active: Optional[bool] = None
+    is_admin: Optional[bool] = None  # Add admin flag
     requests_per_minute: Optional[int] = None
     requests_per_day: Optional[int] = None
 
@@ -83,6 +85,7 @@ class ApiKeyResponse(BaseModel):
     name: str
     description: Optional[str]
     is_active: bool
+    is_admin: bool  # Add admin flag
     total_requests: int
     last_used: Optional[datetime]
     requests_per_minute: int
@@ -102,7 +105,7 @@ class ApiKeyResponse(BaseModel):
 def create_account(
     account: AccountCreate, 
     db: Session = Depends(get_db),
-    current_user: AdminUser = Depends(get_current_admin_user)
+    admin_key: ApiKey = Depends(get_admin_api_key)
 ):
     """Create a new account in the pool"""
     try:
@@ -126,7 +129,7 @@ def create_account(
 def list_accounts(
     active_only: bool = False, 
     db: Session = Depends(get_db),
-    current_user: AdminUser = Depends(get_current_admin_user)
+    admin_key: ApiKey = Depends(get_admin_api_key)
 ):
     """List all accounts"""
     accounts = account_pool_manager.list_accounts(db, active_only=active_only)
@@ -137,7 +140,7 @@ def list_accounts(
 def get_account(
     account_id: int, 
     db: Session = Depends(get_db),
-    current_user: AdminUser = Depends(get_current_admin_user)
+    admin_key: ApiKey = Depends(get_admin_api_key)
 ):
     """Get account by ID"""
     account = account_pool_manager.get_account(db, account_id)
@@ -151,7 +154,7 @@ def update_account(
     account_id: int, 
     account_update: AccountUpdate, 
     db: Session = Depends(get_db),
-    current_user: AdminUser = Depends(get_current_admin_user)
+    admin_key: ApiKey = Depends(get_admin_api_key)
 ):
     """Update account"""
     update_data = account_update.model_dump(exclude_unset=True)
@@ -165,7 +168,7 @@ def update_account(
 def delete_account(
     account_id: int, 
     db: Session = Depends(get_db),
-    current_user: AdminUser = Depends(get_current_admin_user)
+    admin_key: ApiKey = Depends(get_admin_api_key)
 ):
     """Delete account"""
     success = account_pool_manager.delete_account(db, account_id)
@@ -179,7 +182,7 @@ def delete_account(
 def create_api_key(
     api_key: ApiKeyCreate, 
     db: Session = Depends(get_db),
-    current_user: AdminUser = Depends(get_current_admin_user)
+    admin_key: ApiKey = Depends(get_admin_api_key)
 ):
     """Create a new API key"""
     try:
@@ -189,7 +192,8 @@ def create_api_key(
             description=api_key.description,
             requests_per_minute=api_key.requests_per_minute,
             requests_per_day=api_key.requests_per_day,
-            expires_days=api_key.expires_days
+            expires_days=api_key.expires_days,
+            is_admin=api_key.is_admin
         )
         return new_key
     except Exception as e:
@@ -201,7 +205,7 @@ def create_api_key(
 def list_api_keys(
     active_only: bool = False, 
     db: Session = Depends(get_db),
-    current_user: AdminUser = Depends(get_current_admin_user)
+    admin_key: ApiKey = Depends(get_admin_api_key)
 ):
     """List all API keys"""
     keys = api_key_manager.list_keys(db, active_only=active_only)
@@ -212,7 +216,7 @@ def list_api_keys(
 def get_api_key(
     key_id: int, 
     db: Session = Depends(get_db),
-    current_user: AdminUser = Depends(get_current_admin_user)
+    admin_key: ApiKey = Depends(get_admin_api_key)
 ):
     """Get API key by ID"""
     api_key = api_key_manager.get_key(db, key_id)
@@ -226,7 +230,7 @@ def update_api_key(
     key_id: int, 
     api_key_update: ApiKeyUpdate, 
     db: Session = Depends(get_db),
-    current_user: AdminUser = Depends(get_current_admin_user)
+    admin_key: ApiKey = Depends(get_admin_api_key)
 ):
     """Update API key"""
     update_data = api_key_update.model_dump(exclude_unset=True)
@@ -240,7 +244,7 @@ def update_api_key(
 def delete_api_key(
     key_id: int, 
     db: Session = Depends(get_db),
-    current_user: AdminUser = Depends(get_current_admin_user)
+    admin_key: ApiKey = Depends(get_admin_api_key)
 ):
     """Delete API key"""
     success = api_key_manager.delete_key(db, key_id)
@@ -253,7 +257,7 @@ def delete_api_key(
 def revoke_api_key(
     key_id: int, 
     db: Session = Depends(get_db),
-    current_user: AdminUser = Depends(get_current_admin_user)
+    admin_key: ApiKey = Depends(get_admin_api_key)
 ):
     """Revoke (deactivate) an API key"""
     success = api_key_manager.revoke_key(db, key_id)
@@ -266,7 +270,7 @@ def revoke_api_key(
 @router.get("/stats/accounts")
 def get_account_stats(
     db: Session = Depends(get_db),
-    current_user: AdminUser = Depends(get_current_admin_user)
+    admin_key: ApiKey = Depends(get_admin_api_key)
 ):
     """Get account statistics"""
     accounts = db.query(Account).all()
@@ -288,7 +292,7 @@ def get_account_stats(
 @router.get("/stats/api-keys")
 def get_api_key_stats(
     db: Session = Depends(get_db),
-    current_user: AdminUser = Depends(get_current_admin_user)
+    admin_key: ApiKey = Depends(get_admin_api_key)
 ):
     """Get API key statistics"""
     api_keys = db.query(ApiKey).all()

@@ -261,7 +261,7 @@
     <div class="header">
         <div style="display: flex; justify-content: space-between; align-items: center;">
             <h1>🚀 AMQ2API 管理面板</h1>
-            <button class="btn btn-danger" onclick="logout()">登出</button>
+            <button class="btn btn-danger" onclick="clearApiKey()">清除密钥</button>
         </div>
     </div>
     
@@ -372,6 +372,12 @@
                 <div class="form-group">
                     <label>描述</label>
                     <textarea name="description"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" name="is_admin" value="true">
+                        管理员权限（可访问管理面板）
+                    </label>
                 </div>
                 <div class="form-group">
                     <label>每分钟请求限制</label>
