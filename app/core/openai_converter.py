@@ -167,7 +167,8 @@ def convert_openai_content_to_claude(content):
                 if url.startswith("data:"):
                     # Base64 image: data:image/jpeg;base64,<data>
                     import re
-                    match = re.match(r'data:(image/[^;]+);base64,(.+)', url)
+                    # Use non-greedy match and specific character classes to prevent ReDoS
+                    match = re.match(r'data:(image/[a-zA-Z0-9+.-]+);base64,([A-Za-z0-9+/=]+)$', url)
                     if match:
                         media_type = match.group(1)
                         base64_data = match.group(2)
