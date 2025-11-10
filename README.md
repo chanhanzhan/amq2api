@@ -2,6 +2,18 @@
 
 将 Claude API 请求转换为 Amazon Q/CodeWhisperer 请求的代理服务。
 
+## 🎉 v2.0 新功能
+
+- ✅ **账号池管理** - 支持多个 Amazon Q 账号，自动负载均衡
+- ✅ **API 密钥认证** - 安全的访问控制，兼容 Claude 协议
+- ✅ **OpenAI API 支持** - 完整支持 OpenAI chat completion 格式
+- ✅ **Web 管理界面** - 现代化的管理面板，实时监控
+- ✅ **使用统计** - 详细的请求和 token 使用统计
+
+📖 **完整功能文档：[FEATURES_V2.md](FEATURES_V2.md)**
+
+---
+
 ## 功能特性
 
 - ✅ 完整的 Claude API 兼容接口
