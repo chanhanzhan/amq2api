@@ -16,3 +16,9 @@ python-json-logger==2.0.7
 
 # Token 计数
 tiktoken==0.5.2
+
+# Database
+sqlalchemy==2.0.23
+
+# Templates
+jinja2==3.1.2

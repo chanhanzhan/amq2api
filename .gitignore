@@ -44,3 +44,8 @@ htmlcov/
 
 # Docker
 .dockerignore
+
+# Database
+data/
+*.db
+*.db-journal
