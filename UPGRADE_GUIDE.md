@@ -100,7 +100,28 @@ python app_new.py
 
 打开浏览器访问：`http://localhost:8080/admin/dashboard`
 
-### 步骤 7: 添加账号
+**登录信息：**
+- 用户名：`admin`
+- 密码：`admin123`
+
+⚠️ **重要：** 首次登录后请立即修改密码！
+
+### 步骤 7: 修改默认密码
+
+登录后，建议立即修改默认密码以确保安全：
+
+```bash
+# 使用 API 修改密码（需要先登录获取 session cookie）
+curl -X POST http://localhost:8080/admin/change-password \
+  -H "Content-Type: application/json" \
+  -b "admin_session=your-session-cookie" \
+  -d '{
+    "old_password": "admin123",
+    "new_password": "your-new-secure-password"
+  }'
+```
+
+### 步骤 8: 添加账号
 
 1. 在管理界面点击"账号管理"
 2. 点击"+ 添加账号"
@@ -127,7 +148,7 @@ curl -X POST http://localhost:8080/admin/accounts \
   }'
 ```
 
-### 步骤 8: 创建 API 密钥
+### 步骤 9: 创建 API 密钥
 
 1. 在管理界面点击"API密钥"
 2. 点击"+ 创建密钥"
@@ -151,7 +172,7 @@ curl -X POST http://localhost:8080/admin/api-keys \
   }'
 ```
 
-### 步骤 9: 更新客户端配置
+### 步骤 10: 更新客户端配置
 
 将创建的 API 密钥添加到客户端请求中：
 
@@ -179,7 +200,7 @@ curl -X POST http://localhost:8080/v1/messages \
   -d '{...}'
 ```
 
-### 步骤 10: 测试功能
+### 步骤 11: 测试功能
 
 ```bash
 # 运行测试脚本

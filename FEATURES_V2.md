@@ -56,6 +56,50 @@ uvicorn app_new:app --host 0.0.0.0 --port 8080
 
 打开浏览器访问：`http://localhost:8080/admin/dashboard`
 
+**首次登录：**
+- 用户名：`admin`
+- 密码：`admin123`
+- ⚠️ **重要：** 登录后请立即修改密码
+
+---
+
+## 管理员认证
+
+### 默认管理员账号
+
+系统首次启动时会自动创建默认管理员账号：
+- **用户名：** `admin`
+- **密码：** `admin123`
+
+### 修改密码
+
+登录后可通过管理面板修改密码（功能即将添加），或使用 API：
+
+```bash
+curl -X POST http://localhost:8080/admin/change-password \
+  -H "Content-Type: application/json" \
+  -b "admin_session=your-session-cookie" \
+  -d '{
+    "old_password": "admin123",
+    "new_password": "your-new-secure-password"
+  }'
+```
+
+### 会话管理
+
+- **会话有效期：** 24小时
+- **不活动超时：** 2小时
+- **自动登出：** 会话过期后自动跳转到登录页面
+
+### 安全特性
+
+- ✅ 密码使用 PBKDF2-HMAC-SHA256 加密
+- ✅ 每个密码使用随机盐值
+- ✅ 会话令牌随机生成（48字节）
+- ✅ HTTP-only Cookie 防止 XSS
+- ✅ 会话过期和不活动超时
+- ✅ 管理员认证与 API 密钥认证分离
+
 ---
 
 ## 账号池管理
