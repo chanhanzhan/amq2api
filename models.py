@@ -246,7 +246,18 @@ def extract_text_from_claude_content(content: ClaudeContent) -> str:
         for block in content:
             if isinstance(block, ClaudeTextContent):
                 text_parts.append(block.text)
-            elif isinstance(block, dict) and block.get("type") == "text":
-                text_parts.append(block.get("text", ""))
+            elif isinstance(block, dict):
+                block_type = block.get("type")
+                if block_type == "text":
+                    text_parts.append(block.get("text", ""))
+                elif block_type == "image":
+                    # 为图片添加占位符文本
+                    source = block.get("source", {})
+                    if source.get("type") == "base64":
+                        media_type = source.get("media_type", "image")
+                        text_parts.append(f"[Image: {media_type}]")
+                    elif source.get("type") == "url":
+                        url = source.get("url", "")
+                        text_parts.append(f"[Image: {url}]")
         return "\n".join(text_parts)
     return ""

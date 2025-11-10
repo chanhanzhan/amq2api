@@ -96,6 +96,96 @@ async def admin_dashboard(
     return templates.TemplateResponse("admin.html", {"request": request})
 
 
+@app.get("/v1/models")
+async def list_models():
+    """
+    列出可用的模型（OpenAI API 兼容）
+    返回支持的 Claude 模型列表
+    """
+    import time
+    
+    current_time = int(time.time())
+    
+    return {
+        "object": "list",
+        "data": [
+            {
+                "id": "claude-sonnet-4.5",
+                "object": "model",
+                "created": current_time,
+                "owned_by": "anthropic",
+                "permission": [],
+                "root": "claude-sonnet-4.5",
+                "parent": None
+            },
+            {
+                "id": "claude-sonnet-4",
+                "object": "model",
+                "created": current_time,
+                "owned_by": "anthropic",
+                "permission": [],
+                "root": "claude-sonnet-4",
+                "parent": None
+            },
+            {
+                "id": "claude-3-5-sonnet-20241022",
+                "object": "model",
+                "created": current_time,
+                "owned_by": "anthropic",
+                "permission": [],
+                "root": "claude-3-5-sonnet-20241022",
+                "parent": None
+            },
+            # OpenAI 模型别名
+            {
+                "id": "gpt-4",
+                "object": "model",
+                "created": current_time,
+                "owned_by": "openai",
+                "permission": [],
+                "root": "gpt-4",
+                "parent": None
+            },
+            {
+                "id": "gpt-4-turbo",
+                "object": "model",
+                "created": current_time,
+                "owned_by": "openai",
+                "permission": [],
+                "root": "gpt-4-turbo",
+                "parent": None
+            },
+            {
+                "id": "gpt-4o",
+                "object": "model",
+                "created": current_time,
+                "owned_by": "openai",
+                "permission": [],
+                "root": "gpt-4o",
+                "parent": None
+            },
+            {
+                "id": "gpt-4o-mini",
+                "object": "model",
+                "created": current_time,
+                "owned_by": "openai",
+                "permission": [],
+                "root": "gpt-4o-mini",
+                "parent": None
+            },
+            {
+                "id": "gpt-3.5-turbo",
+                "object": "model",
+                "created": current_time,
+                "owned_by": "openai",
+                "permission": [],
+                "root": "gpt-3.5-turbo",
+                "parent": None
+            }
+        ]
+    }
+
+
 @app.get("/health")
 async def health():
     """健康检查端点"""
