@@ -7,6 +7,8 @@ from sqlalchemy import Column, Integer, String, Boolean, DateTime, Float, Text, 
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 import os
+import hashlib
+import secrets
 
 Base = declarative_base()
 
@@ -74,6 +76,70 @@ class ApiKey(Base):
     expires_at = Column(DateTime, nullable=True)
 
 
+class AdminUser(Base):
+    """Admin users for web interface authentication"""
+    __tablename__ = "admin_users"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    username = Column(String(50), unique=True, nullable=False, index=True)
+    password_hash = Column(String(128), nullable=False)
+    salt = Column(String(32), nullable=False)
+    
+    # User info
+    email = Column(String(100), nullable=True)
+    full_name = Column(String(100), nullable=True)
+    
+    # Status
+    is_active = Column(Boolean, default=True)
+    is_superuser = Column(Boolean, default=False)
+    
+    # Session management
+    last_login = Column(DateTime, nullable=True)
+    login_count = Column(Integer, default=0)
+    
+    # Metadata
+    created_at = Column(DateTime, default=datetime.now)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+
+    @staticmethod
+    def hash_password(password: str, salt: str = None) -> tuple:
+        """Hash password with salt"""
+        if salt is None:
+            salt = secrets.token_hex(16)
+        
+        password_hash = hashlib.pbkdf2_hmac(
+            'sha256',
+            password.encode('utf-8'),
+            salt.encode('utf-8'),
+            100000
+        ).hex()
+        
+        return password_hash, salt
+    
+    def verify_password(self, password: str) -> bool:
+        """Verify password"""
+        password_hash, _ = self.hash_password(password, self.salt)
+        return password_hash == self.password_hash
+
+
+class AdminSession(Base):
+    """Admin session tokens"""
+    __tablename__ = "admin_sessions"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    session_token = Column(String(64), unique=True, nullable=False, index=True)
+    user_id = Column(Integer, nullable=False)
+    
+    # Session info
+    ip_address = Column(String(50), nullable=True)
+    user_agent = Column(Text, nullable=True)
+    
+    # Expiration
+    created_at = Column(DateTime, default=datetime.now)
+    expires_at = Column(DateTime, nullable=False)
+    last_activity = Column(DateTime, default=datetime.now)
+
+
 class UsageLog(Base):
     """Usage logs for tracking requests"""
     __tablename__ = "usage_logs"
@@ -113,6 +179,32 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 def init_db():
     """Initialize database tables"""
     Base.metadata.create_all(bind=engine)
+    
+    # Create default admin user if none exists
+    db = SessionLocal()
+    try:
+        admin_count = db.query(AdminUser).count()
+        if admin_count == 0:
+            # Create default admin user
+            password_hash, salt = AdminUser.hash_password("admin123")
+            default_admin = AdminUser(
+                username="admin",
+                password_hash=password_hash,
+                salt=salt,
+                email="admin@example.com",
+                full_name="Administrator",
+                is_superuser=True
+            )
+            db.add(default_admin)
+            db.commit()
+            print("=" * 60)
+            print("⚠️  创建了默认管理员账号:")
+            print("   用户名: admin")
+            print("   密码: admin123")
+            print("   请立即登录后修改密码!")
+            print("=" * 60)
+    finally:
+        db.close()
 
 
 def get_db():

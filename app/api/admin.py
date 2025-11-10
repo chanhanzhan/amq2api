@@ -8,9 +8,10 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.models.database import get_db, Account, ApiKey
+from app.models.database import get_db, Account, ApiKey, AdminUser
 from app.core.account_pool import account_pool_manager
 from app.core.api_keys import api_key_manager
+from app.api.auth import get_current_admin_user
 
 logger = logging.getLogger(__name__)
 
@@ -98,7 +99,11 @@ class ApiKeyResponse(BaseModel):
 
 # Account endpoints
 @router.post("/accounts", response_model=AccountResponse)
-def create_account(account: AccountCreate, db: Session = Depends(get_db)):
+def create_account(
+    account: AccountCreate, 
+    db: Session = Depends(get_db),
+    current_user: AdminUser = Depends(get_current_admin_user)
+):
     """Create a new account in the pool"""
     try:
         new_account = account_pool_manager.add_account(
@@ -118,14 +123,22 @@ def create_account(account: AccountCreate, db: Session = Depends(get_db)):
 
 
 @router.get("/accounts", response_model=List[AccountResponse])
-def list_accounts(active_only: bool = False, db: Session = Depends(get_db)):
+def list_accounts(
+    active_only: bool = False, 
+    db: Session = Depends(get_db),
+    current_user: AdminUser = Depends(get_current_admin_user)
+):
     """List all accounts"""
     accounts = account_pool_manager.list_accounts(db, active_only=active_only)
     return accounts
 
 
 @router.get("/accounts/{account_id}", response_model=AccountResponse)
-def get_account(account_id: int, db: Session = Depends(get_db)):
+def get_account(
+    account_id: int, 
+    db: Session = Depends(get_db),
+    current_user: AdminUser = Depends(get_current_admin_user)
+):
     """Get account by ID"""
     account = account_pool_manager.get_account(db, account_id)
     if not account:
@@ -134,7 +147,12 @@ def get_account(account_id: int, db: Session = Depends(get_db)):
 
 
 @router.put("/accounts/{account_id}", response_model=AccountResponse)
-def update_account(account_id: int, account_update: AccountUpdate, db: Session = Depends(get_db)):
+def update_account(
+    account_id: int, 
+    account_update: AccountUpdate, 
+    db: Session = Depends(get_db),
+    current_user: AdminUser = Depends(get_current_admin_user)
+):
     """Update account"""
     update_data = account_update.model_dump(exclude_unset=True)
     updated_account = account_pool_manager.update_account(db, account_id, **update_data)
@@ -144,7 +162,11 @@ def update_account(account_id: int, account_update: AccountUpdate, db: Session =
 
 
 @router.delete("/accounts/{account_id}")
-def delete_account(account_id: int, db: Session = Depends(get_db)):
+def delete_account(
+    account_id: int, 
+    db: Session = Depends(get_db),
+    current_user: AdminUser = Depends(get_current_admin_user)
+):
     """Delete account"""
     success = account_pool_manager.delete_account(db, account_id)
     if not success:
@@ -154,7 +176,11 @@ def delete_account(account_id: int, db: Session = Depends(get_db)):
 
 # API Key endpoints
 @router.post("/api-keys", response_model=ApiKeyResponse)
-def create_api_key(api_key: ApiKeyCreate, db: Session = Depends(get_db)):
+def create_api_key(
+    api_key: ApiKeyCreate, 
+    db: Session = Depends(get_db),
+    current_user: AdminUser = Depends(get_current_admin_user)
+):
     """Create a new API key"""
     try:
         new_key = api_key_manager.create_key(
@@ -172,14 +198,22 @@ def create_api_key(api_key: ApiKeyCreate, db: Session = Depends(get_db)):
 
 
 @router.get("/api-keys", response_model=List[ApiKeyResponse])
-def list_api_keys(active_only: bool = False, db: Session = Depends(get_db)):
+def list_api_keys(
+    active_only: bool = False, 
+    db: Session = Depends(get_db),
+    current_user: AdminUser = Depends(get_current_admin_user)
+):
     """List all API keys"""
     keys = api_key_manager.list_keys(db, active_only=active_only)
     return keys
 
 
 @router.get("/api-keys/{key_id}", response_model=ApiKeyResponse)
-def get_api_key(key_id: int, db: Session = Depends(get_db)):
+def get_api_key(
+    key_id: int, 
+    db: Session = Depends(get_db),
+    current_user: AdminUser = Depends(get_current_admin_user)
+):
     """Get API key by ID"""
     api_key = api_key_manager.get_key(db, key_id)
     if not api_key:
@@ -188,7 +222,12 @@ def get_api_key(key_id: int, db: Session = Depends(get_db)):
 
 
 @router.put("/api-keys/{key_id}", response_model=ApiKeyResponse)
-def update_api_key(key_id: int, api_key_update: ApiKeyUpdate, db: Session = Depends(get_db)):
+def update_api_key(
+    key_id: int, 
+    api_key_update: ApiKeyUpdate, 
+    db: Session = Depends(get_db),
+    current_user: AdminUser = Depends(get_current_admin_user)
+):
     """Update API key"""
     update_data = api_key_update.model_dump(exclude_unset=True)
     updated_key = api_key_manager.update_key(db, key_id, **update_data)
@@ -198,7 +237,11 @@ def update_api_key(key_id: int, api_key_update: ApiKeyUpdate, db: Session = Depe
 
 
 @router.delete("/api-keys/{key_id}")
-def delete_api_key(key_id: int, db: Session = Depends(get_db)):
+def delete_api_key(
+    key_id: int, 
+    db: Session = Depends(get_db),
+    current_user: AdminUser = Depends(get_current_admin_user)
+):
     """Delete API key"""
     success = api_key_manager.delete_key(db, key_id)
     if not success:
@@ -207,7 +250,11 @@ def delete_api_key(key_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/api-keys/{key_id}/revoke")
-def revoke_api_key(key_id: int, db: Session = Depends(get_db)):
+def revoke_api_key(
+    key_id: int, 
+    db: Session = Depends(get_db),
+    current_user: AdminUser = Depends(get_current_admin_user)
+):
     """Revoke (deactivate) an API key"""
     success = api_key_manager.revoke_key(db, key_id)
     if not success:
@@ -217,7 +264,10 @@ def revoke_api_key(key_id: int, db: Session = Depends(get_db)):
 
 # Statistics endpoints
 @router.get("/stats/accounts")
-def get_account_stats(db: Session = Depends(get_db)):
+def get_account_stats(
+    db: Session = Depends(get_db),
+    current_user: AdminUser = Depends(get_current_admin_user)
+):
     """Get account statistics"""
     accounts = db.query(Account).all()
     total_accounts = len(accounts)
@@ -236,7 +286,10 @@ def get_account_stats(db: Session = Depends(get_db)):
 
 
 @router.get("/stats/api-keys")
-def get_api_key_stats(db: Session = Depends(get_db)):
+def get_api_key_stats(
+    db: Session = Depends(get_db),
+    current_user: AdminUser = Depends(get_current_admin_user)
+):
     """Get API key statistics"""
     api_keys = db.query(ApiKey).all()
     total_keys = len(api_keys)

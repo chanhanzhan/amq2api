@@ -3,6 +3,29 @@
 // API base URL
 const API_BASE = '';
 
+// Logout function
+async function logout() {
+    if (!confirm('确定要登出吗？')) return;
+    
+    try {
+        await fetch(`${API_BASE}/admin/logout`, { method: 'POST' });
+        window.location.href = '/admin/login-page';
+    } catch (error) {
+        console.error('Logout error:', error);
+        window.location.href = '/admin/login-page';
+    }
+}
+
+// Handle authentication errors
+function handleAuthError(error) {
+    if (error.message && error.message.includes('401')) {
+        alert('会话已过期，请重新登录');
+        window.location.href = '/admin/login-page';
+        return true;
+    }
+    return false;
+}
+
 // Show/hide sections
 function showSection(section) {
     // Hide all sections
@@ -43,6 +66,9 @@ async function loadDashboard() {
         document.getElementById('total-requests').textContent = accountStats.total_requests;
     } catch (error) {
         console.error('Error loading dashboard:', error);
+        if (!handleAuthError(error)) {
+            alert('加载数据失败');
+        }
     }
 }
 

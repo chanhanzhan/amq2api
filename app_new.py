@@ -27,6 +27,7 @@ from app.core.api_keys import api_key_manager
 from app.core.auth_middleware import verify_api_key
 from app.core.openai_converter import convert_openai_to_claude, convert_claude_to_openai_stream
 from app.api.admin import router as admin_router
+from app.api.auth import router as auth_router, get_current_admin_user
 
 # 配置日志
 logging.basicConfig(
@@ -76,19 +77,29 @@ app = FastAPI(
 os.makedirs("app/web/static", exist_ok=True)
 app.mount("/static", StaticFiles(directory="app/web/static"), name="static")
 
-# 包含管理API路由
+# 包含路由
+app.include_router(auth_router)
 app.include_router(admin_router)
 
 
 @app.get("/")
 async def root():
-    """根路径重定向到管理界面"""
-    return RedirectResponse(url="/admin/dashboard")
+    """根路径重定向到登录页面"""
+    return RedirectResponse(url="/admin/login-page")
+
+
+@app.get("/admin/login-page", response_class=HTMLResponse)
+async def login_page(request: Request):
+    """登录页面"""
+    return templates.TemplateResponse("login.html", {"request": request})
 
 
 @app.get("/admin/dashboard", response_class=HTMLResponse)
-async def admin_dashboard(request: Request):
-    """管理面板页面"""
+async def admin_dashboard(
+    request: Request,
+    current_user = Depends(get_current_admin_user)
+):
+    """管理面板页面（需要认证）"""
     return templates.TemplateResponse("admin.html", {"request": request})
 
 
