@@ -2,55 +2,72 @@
 
 本文档提供 AMQ2API v2.0 的安全配置和最佳实践建议。
 
-## 管理员账号安全
+## 管理员密钥安全
 
-### 修改默认密码
+### 更换默认管理员密钥
 
-**⚠️ 非常重要：** 首次部署后必须立即修改默认管理员密码。
+**⚠️ 非常重要：** 首次部署后必须立即更换默认管理员 API 密钥。
 
-默认凭据：
-- 用户名：`admin`
-- 密码：`admin123`
-
-**修改方法：**
-
-1. 登录管理界面
-2. 使用 API 修改密码：
-
-```bash
-# 首先登录获取 session cookie
-curl -c cookies.txt -X POST http://localhost:8080/admin/login \
-  -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"admin123"}'
-
-# 修改密码
-curl -b cookies.txt -X POST http://localhost:8080/admin/change-password \
-  -H "Content-Type: application/json" \
-  -d '{
-    "old_password": "admin123",
-    "new_password": "YourSecurePassword123!"
-  }'
+默认管理员密钥：
+```
+amq-admin-default-key-change-immediately
 ```
 
-### 密码要求建议
+**更换步骤：**
 
-- 最少 12 个字符
-- 包含大小写字母
-- 包含数字
-- 包含特殊字符
-- 不使用常见密码或个人信息
+1. 使用默认密钥登录管理面板
+2. 创建新的管理员 API 密钥（勾选"管理员权限"）
+3. 保存新密钥
+4. 使用新密钥登录
+5. 删除默认管理员密钥
 
-### 会话安全
+**API 方式：**
 
-- **会话有效期：** 24小时
-- **不活动超时：** 2小时
-- **Cookie 设置：** HTTP-only, SameSite=Lax
-- **会话存储：** 数据库（非内存）
+```bash
+# 创建新管理员密钥
+curl -X POST http://localhost:8080/admin/api-keys \
+  -H "Authorization: Bearer amq-admin-default-key-change-immediately" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "生产管理员密钥",
+    "description": "生产环境使用",
+    "is_admin": true,
+    "requests_per_minute": 100,
+    "requests_per_day": 10000
+  }'
 
-**最佳实践：**
-- 使用后及时登出
-- 不要在公共计算机上保持登录状态
-- 定期检查活跃会话
+# 删除默认密钥
+curl -X DELETE http://localhost:8080/admin/api-keys/1 \
+  -H "Authorization: Bearer 你的新管理员密钥"
+```
+
+### 管理员密钥管理
+
+1. **最小权限原则**
+   - 只给需要的人分配管理员密钥
+   - 为不同用途创建不同的管理员密钥
+   - 定期审查管理员密钥列表
+
+2. **安全存储**
+   ```bash
+   # 使用环境变量
+   export ADMIN_API_KEY="amq-your-admin-key"
+   
+   # 或使用密钥管理工具
+   # - 1Password
+   # - LastPass
+   # - AWS Secrets Manager
+   # - HashiCorp Vault
+   ```
+
+3. **定期轮换**
+   - 建议每 90 天轮换管理员密钥
+   - 员工离职时立即吊销相关密钥
+
+4. **访问审计**
+   - 监控管理员密钥的使用情况
+   - 记录所有管理操作
+   - 异常活动时立即告警
 
 ## API 密钥安全
 

@@ -100,25 +100,41 @@ python app_new.py
 
 打开浏览器访问：`http://localhost:8080/admin/dashboard`
 
-**登录信息：**
-- 用户名：`admin`
-- 密码：`admin123`
+系统会提示您输入管理员 API 密钥。
 
-⚠️ **重要：** 首次登录后请立即修改密码！
+**默认管理员密钥：**
+```
+amq-admin-default-key-change-immediately
+```
 
-### 步骤 7: 修改默认密码
+输入后即可访问管理面板。
 
-登录后，建议立即修改默认密码以确保安全：
+### 步骤 7: 创建新的管理员密钥并删除默认密钥
+
+⚠️ **重要安全步骤：**
+
+1. 在管理面板点击"API密钥"
+2. 点击"+ 创建密钥"
+3. 填写信息并**勾选"管理员权限"**
+4. 创建后立即保存新密钥
+5. 删除默认管理员密钥
+
+或使用 API：
 
 ```bash
-# 使用 API 修改密码（需要先登录获取 session cookie）
-curl -X POST http://localhost:8080/admin/change-password \
+# 创建新的管理员密钥
+curl -X POST http://localhost:8080/admin/api-keys \
+  -H "Authorization: Bearer amq-admin-default-key-change-immediately" \
   -H "Content-Type: application/json" \
-  -b "admin_session=your-session-cookie" \
   -d '{
-    "old_password": "admin123",
-    "new_password": "your-new-secure-password"
+    "name": "我的管理员密钥",
+    "is_admin": true,
+    "requests_per_minute": 100
   }'
+
+# 保存新密钥后，删除默认密钥 (ID=1)
+curl -X DELETE http://localhost:8080/admin/api-keys/1 \
+  -H "Authorization: Bearer 你的新管理员密钥"
 ```
 
 ### 步骤 8: 添加账号
