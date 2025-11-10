@@ -18,6 +18,10 @@ def convert_openai_to_claude(openai_request: dict) -> dict:
         "messages": [
             {"role": "system", "content": "You are a helpful assistant"},
             {"role": "user", "content": "Hello"},
+            {"role": "user", "content": [
+                {"type": "text", "text": "What's in this image?"},
+                {"type": "image_url", "image_url": {"url": "https://..."}}
+            ]},
             {"role": "assistant", "content": "Hi there!"},
             {"role": "user", "content": "How are you?"}
         ],
@@ -33,6 +37,10 @@ def convert_openai_to_claude(openai_request: dict) -> dict:
         "model": "claude-sonnet-4.5",
         "messages": [
             {"role": "user", "content": "Hello"},
+            {"role": "user", "content": [
+                {"type": "text", "text": "What's in this image?"},
+                {"type": "image", "source": {"type": "url", "url": "https://..."}}
+            ]},
             {"role": "assistant", "content": "Hi there!"},
             {"role": "user", "content": "How are you?"}
         ],
@@ -62,9 +70,11 @@ def convert_openai_to_claude(openai_request: dict) -> dict:
             # Claude uses a separate system parameter
             system_message = content
         elif role in ["user", "assistant"]:
+            # Handle multimodal content
+            converted_content = convert_openai_content_to_claude(content)
             claude_messages.append({
                 "role": role,
-                "content": content
+                "content": converted_content
             })
         elif role == "tool":
             # OpenAI tool response format
@@ -121,6 +131,69 @@ def convert_openai_to_claude(openai_request: dict) -> dict:
     return claude_request
 
 
+def convert_openai_content_to_claude(content):
+    """
+    Convert OpenAI message content to Claude format
+    
+    OpenAI supports:
+    - String: "Hello"
+    - Array: [{"type": "text", "text": "..."}, {"type": "image_url", "image_url": {...}}]
+    
+    Claude supports:
+    - String: "Hello"
+    - Array: [{"type": "text", "text": "..."}, {"type": "image", "source": {...}}]
+    """
+    if isinstance(content, str):
+        return content
+    
+    if isinstance(content, list):
+        claude_content = []
+        for item in content:
+            item_type = item.get("type")
+            
+            if item_type == "text":
+                # Text content remains the same
+                claude_content.append({
+                    "type": "text",
+                    "text": item.get("text", "")
+                })
+            
+            elif item_type == "image_url":
+                # Convert OpenAI image_url format to Claude image format
+                image_url = item.get("image_url", {})
+                url = image_url.get("url", "")
+                
+                # Check if it's a base64 image or URL
+                if url.startswith("data:"):
+                    # Base64 image: data:image/jpeg;base64,<data>
+                    import re
+                    match = re.match(r'data:(image/[^;]+);base64,(.+)', url)
+                    if match:
+                        media_type = match.group(1)
+                        base64_data = match.group(2)
+                        claude_content.append({
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": media_type,
+                                "data": base64_data
+                            }
+                        })
+                else:
+                    # URL image
+                    claude_content.append({
+                        "type": "image",
+                        "source": {
+                            "type": "url",
+                            "url": url
+                        }
+                    })
+        
+        return claude_content if claude_content else content
+    
+    return content
+
+
 def convert_openai_model_to_claude(openai_model: str) -> str:
     """
     Convert OpenAI model name to Claude model name
@@ -153,7 +226,25 @@ def convert_claude_to_openai_stream(claude_event: dict, event_type: str) -> Opti
     import json
     import uuid
     
-    if event_type == "content_block_delta":
+    if event_type == "message_start":
+        # Send initial chunk with role
+        openai_chunk = {
+            "id": f"chatcmpl-{uuid.uuid4().hex[:8]}",
+            "object": "chat.completion.chunk",
+            "created": int(claude_event.get("created", 0)),
+            "model": claude_event.get("model", "gpt-4"),
+            "choices": [{
+                "index": 0,
+                "delta": {
+                    "role": "assistant",
+                    "content": ""
+                },
+                "finish_reason": None
+            }]
+        }
+        return f"data: {json.dumps(openai_chunk)}\n\n"
+    
+    elif event_type == "content_block_delta":
         # Extract text from delta
         delta = claude_event.get("delta", {})
         if delta.get("type") == "text_delta":
@@ -172,9 +263,87 @@ def convert_claude_to_openai_stream(claude_event: dict, event_type: str) -> Opti
                 }]
             }
             return f"data: {json.dumps(openai_chunk)}\n\n"
+        elif delta.get("type") == "input_json_delta":
+            # Tool use input delta - accumulate but don't send yet
+            # Will be sent in content_block_stop
+            return None
+    
+    elif event_type == "content_block_start":
+        # Check if it's a tool use block
+        content_block = claude_event.get("content_block", {})
+        if content_block.get("type") == "tool_use":
+            # Start of tool call
+            tool_use_id = content_block.get("id")
+            tool_name = content_block.get("name")
+            
+            openai_chunk = {
+                "id": f"chatcmpl-{uuid.uuid4().hex[:8]}",
+                "object": "chat.completion.chunk",
+                "created": int(claude_event.get("created", 0)),
+                "model": claude_event.get("model", "gpt-4"),
+                "choices": [{
+                    "index": 0,
+                    "delta": {
+                        "tool_calls": [{
+                            "index": claude_event.get("index", 0),
+                            "id": tool_use_id,
+                            "type": "function",
+                            "function": {
+                                "name": tool_name,
+                                "arguments": ""
+                            }
+                        }]
+                    },
+                    "finish_reason": None
+                }]
+            }
+            return f"data: {json.dumps(openai_chunk)}\n\n"
+    
+    elif event_type == "content_block_stop":
+        # Check if it contains tool use information
+        content_block = claude_event.get("content_block", {})
+        if content_block and content_block.get("type") == "tool_use":
+            # Send complete tool call
+            tool_use_id = content_block.get("id")
+            tool_name = content_block.get("name")
+            tool_input = content_block.get("input", {})
+            
+            openai_chunk = {
+                "id": f"chatcmpl-{uuid.uuid4().hex[:8]}",
+                "object": "chat.completion.chunk",
+                "created": int(claude_event.get("created", 0)),
+                "model": claude_event.get("model", "gpt-4"),
+                "choices": [{
+                    "index": 0,
+                    "delta": {
+                        "tool_calls": [{
+                            "index": claude_event.get("index", 0),
+                            "id": tool_use_id,
+                            "type": "function",
+                            "function": {
+                                "name": tool_name,
+                                "arguments": json.dumps(tool_input)
+                            }
+                        }]
+                    },
+                    "finish_reason": None
+                }]
+            }
+            return f"data: {json.dumps(openai_chunk)}\n\n"
     
     elif event_type == "message_stop":
         # Send final chunk with finish_reason
+        stop_reason = claude_event.get("stop_reason", "stop")
+        
+        # Map Claude stop reasons to OpenAI format
+        finish_reason_map = {
+            "end_turn": "stop",
+            "max_tokens": "length",
+            "stop_sequence": "stop",
+            "tool_use": "tool_calls"
+        }
+        finish_reason = finish_reason_map.get(stop_reason, "stop")
+        
         openai_chunk = {
             "id": f"chatcmpl-{uuid.uuid4().hex[:8]}",
             "object": "chat.completion.chunk",
@@ -183,7 +352,7 @@ def convert_claude_to_openai_stream(claude_event: dict, event_type: str) -> Opti
             "choices": [{
                 "index": 0,
                 "delta": {},
-                "finish_reason": "stop"
+                "finish_reason": finish_reason
             }]
         }
         return f"data: {json.dumps(openai_chunk)}\n\ndata: [DONE]\n\n"

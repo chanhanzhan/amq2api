@@ -78,6 +78,50 @@ async def health():
         }
 
 
+@app.get("/v1/models")
+async def list_models():
+    """
+    列出可用的模型（OpenAI API 兼容）
+    返回支持的 Claude 模型列表
+    """
+    import time
+    
+    current_time = int(time.time())
+    
+    return {
+        "object": "list",
+        "data": [
+            {
+                "id": "claude-sonnet-4.5",
+                "object": "model",
+                "created": current_time,
+                "owned_by": "anthropic",
+                "permission": [],
+                "root": "claude-sonnet-4.5",
+                "parent": None
+            },
+            {
+                "id": "claude-sonnet-4",
+                "object": "model",
+                "created": current_time,
+                "owned_by": "anthropic",
+                "permission": [],
+                "root": "claude-sonnet-4",
+                "parent": None
+            },
+            {
+                "id": "claude-3-5-sonnet-20241022",
+                "object": "model",
+                "created": current_time,
+                "owned_by": "anthropic",
+                "permission": [],
+                "root": "claude-3-5-sonnet-20241022",
+                "parent": None
+            }
+        ]
+    }
+
+
 @app.post("/v1/messages")
 async def create_message(request: Request):
     """
